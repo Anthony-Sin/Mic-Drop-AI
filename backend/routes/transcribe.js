@@ -1,15 +1,37 @@
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
-import { SpeechClient } from '@google-cloud/speech';
-const router = express.Router();
 
-const upload = multer({ dest: 'uploads/' }); 
-const speechClient = new SpeechClient();
+const router = express.Router();
+const upload = multer({ dest: 'uploads/' });
+
+let speechClient = null;
+
+try {
+  const { SpeechClient } = await import('@google-cloud/speech');
+  
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    speechClient = new SpeechClient({ credentials });
+    console.log('✅ Google Speech initialized with JSON credentials');
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    speechClient = new SpeechClient();
+    console.log('✅ Google Speech initialized with file credentials');
+  } else {
+    console.warn('⚠️ No Google Cloud credentials found - transcribe disabled');
+  }
+} catch (err) {
+  console.warn('⚠️ Google Speech not available:', err.message);
+}
 
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
+    if (!speechClient) {
+      return res.status(500).json({ error: 'Speech service not configured' });
+    }
+    
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
     const filePath = req.file.path;
     const audioBytes = fs.readFileSync(filePath).toString('base64');
 
