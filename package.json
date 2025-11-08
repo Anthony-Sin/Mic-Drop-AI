@@ -1,4 +1,7 @@
 {
+  "name": "mic-drop-ai",
+  "version": "1.0.0",
+  "type": "module",
   "dependencies": {
     "@google-cloud/speech": "^7.2.1",
     "@google/generative-ai": "^0.24.1",
