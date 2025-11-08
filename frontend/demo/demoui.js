@@ -1,3 +1,5 @@
+const API_BASE_URL = 'https://mic-drop-ai-production.up.railway.app';
+
 let isRecording = false;
 let interviewStartTime = null;
 let transcriptInterval = null;
@@ -91,7 +93,6 @@ async function startInterview() {
 }
 
 function setupAudioRecording(stream) {
-    // Create MediaRecorder for the audio stream
     const audioStream = new MediaStream(stream.getAudioTracks());
     mediaRecorder = new MediaRecorder(audioStream, {
         mimeType: 'audio/webm'
@@ -111,7 +112,6 @@ function setupAudioRecording(stream) {
         }
     };
     
-    // Record in 5-second chunks for continuous transcription
     mediaRecorder.start();
     recordingInterval = setInterval(() => {
         if (isRecording && mediaRecorder.state === 'recording') {
@@ -130,11 +130,10 @@ async function sendAudioForTranscription() {
     try {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         
-        // Convert webm to wav for better compatibility with Google Speech API
         const formData = new FormData();
         formData.append('audio', audioBlob, 'audio.webm');
         
-        const response = await fetch('/transcribe', {
+        const response = await fetch(`${API_BASE_URL}/api/transcribe`, {
             method: 'POST',
             body: formData
         });
@@ -172,11 +171,9 @@ function startQuestions() {
     transcriptEl.innerHTML = '';
     let questionIndex = 0;
 
-    // Ask first question immediately
     askQuestion(questionIndex);
     questionIndex++;
 
-    // Ask subsequent questions every 15 seconds
     transcriptInterval = setInterval(() => {
         if (!isRecording) return;
         askQuestion(questionIndex);
@@ -206,7 +203,6 @@ function stopInterview() {
     document.getElementById('recordingIndicator').style.display = 'none';
     document.getElementById('status').textContent = 'INTERVIEW COMPLETED • GENERATING FINAL REPORT';
     
-    // Stop all recording
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
     }
@@ -215,13 +211,11 @@ function stopInterview() {
     clearInterval(metricsInterval);
     clearInterval(recordingInterval);
     
-    // Stop video stream
     const videoElement = document.getElementById('videoFeed');
     if (videoElement.srcObject) {
         videoElement.srcObject.getTracks().forEach(track => track.stop());
     }
 
-    // Show final results
     setTimeout(() => {
         document.getElementById('status').textContent = 'ANALYSIS COMPLETE • REVIEW YOUR RESULTS';
     }, 2000);
@@ -290,7 +284,6 @@ function showGrants() {
     });
 }
 
-// Simulate face tracking movement
 setInterval(() => {
     if (isRecording) {
         const faceBox = document.getElementById('faceBox');
