@@ -100,7 +100,7 @@ header .status {
     border-bottom: 1px solid var(--border-color);
 }
 
-.video-section, .analysis-section, .feedback-section, .grants-section {
+.video-section, .analysis-section, .results-section {
     background-color: rgba(16, 18, 22, 0.8);
     border: 1px solid var(--border-color);
     backdrop-filter: blur(10px);
@@ -249,17 +249,84 @@ button:disabled {
     color: var(--primary-color);
 }
 
-.feedback-section, .grants-section {
-    min-height: 200px;
+/* --- New Tab Styles --- */
+.results-section {
+    min-height: 250px;
 }
 
-#feedbackContainer p, #grantsContainer p {
+.tabs {
+    display: flex;
     margin-bottom: 1rem;
-    font-size: 0.9rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px dashed var(--border-color);
+    border-bottom: 1px solid var(--border-color);
 }
 
-#feedbackContainer p:last-child, #grantsContainer p:last-child {
-    border-bottom: none;
+.tab-link {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.tab-link.active,
+.tab-link:hover {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.tab-content {
+    display: none;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+#feedbackContainer p, #roomScanContainer p {
+    margin-bottom: 1rem;
+}
+
+/* --- New Image Gen Styles --- */
+.gen-image-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+#genImgInput {
+    flex-grow: 1;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.75rem;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9rem;
+}
+
+#genImgBtn {
+    background-color: var(--primary-color);
+    color: #000;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+}
+
+#genImgContainer {
+    width: 100%;
+    max-width: 512px;
+    margin: 0 auto;
+    border: 1px dashed var(--border-color);
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#generatedImage {
+    display: none;
+    width: 100%;
+    height: auto;
 }

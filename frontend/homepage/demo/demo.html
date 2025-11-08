@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
-    <title>AI Grant Interview - Demo</title>
+    <title>AI Interview System - Demo</title>
 </head>
 <body>
     <div class="grid-background"></div>
@@ -15,13 +15,13 @@
 
     <div class="container">
         <header>
-            <h1>AI GRANT INTERVIEW SYSTEM</h1>
+            <h1>AI INTERVIEW SYSTEM</h1>
             <div class="status" id="status">SYSTEM READY • AWAITING INPUT</div>
         </header>
 
         <div class="main-grid">
             <div class="video-section">
-                <div class="section-title">▶ VIDEO FEED</div>
+                <div class="section-title">▶ LIVE VIDEO FEED</div>
                 <div class="video-container">
                     <img id="videoFeed" class="" style="display: none;"/>
                     <div class="video-placeholder" id="videoPlaceholder">
@@ -38,10 +38,10 @@
             </div>
 
             <div class="analysis-section">
-                <div class="section-title">◆ REAL-TIME ANALYSIS</div>
+                <div class="section-title">◆ REAL-TIME ANALYSIS (from Jetson)</div>
                 <div class="metrics">
                     <div class="metric">
-                        <div class="metric-label">CONFIDENCE LEVEL</div>
+                        <div class="metric-label">CONFIDENCE</div>
                         <div class="metric-value" id="confidence">0%</div>
                         <div class="progress-bar">
                             <div class="progress-fill" id="confidenceBar" style="width: 0%"></div>
@@ -78,20 +78,41 @@
             </div>
         </div>
 
-        <div class="feedback-section">
-            <div class="section-title">▲ AI FEEDBACK & SUGGESTIONS</div>
-            <div id="feedbackContainer">
-                <div class="placeholder-text" id="feedbackPlaceholder">
-                    Start interview to receive real-time feedback
+        <div class="results-section">
+            <div class="section-title">▲ AI ANALYSIS RESULTS</div>
+            
+            <div class="tabs">
+                <button class="tab-link active" data-tab="tab-feedback">AI Feedback</button>
+                <button class="tab-link" data-tab="tab-roomscan">Room Scan</button>
+                <button class="tab-link" data-tab="tab-genimg">Pro Image</button>
+            </div>
+
+            <div id="tab-feedback" class="tab-content active">
+                <div id="feedbackContainer">
+                    <div class="placeholder-text" id="feedbackPlaceholder">
+                        AI feedback on your speech will appear here after the interview.
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="grants-section">
-            <div class="section-title">★ MATCHED GRANTS</div>
-            <div id="grantsContainer">
-                <div class="placeholder-text" id="grantsPlaceholder">
-                    Grant matching will begin after analyzing your interview
+            <div id="tab-roomscan" class="tab-content">
+                <div id="roomScanContainer">
+                    <div class="placeholder-text" id="roomScanPlaceholder">
+                        Room scan results will appear here when the interview starts.
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-genimg" class="tab-content">
+                <div class="gen-image-controls">
+                    <input type="text" id="genImgInput" placeholder="Describe yourself (e.g., 'me as a CEO')">
+                    <button id="genImgBtn">Generate Image</button>
+                </div>
+                <div id="genImgContainer">
+                    <div class="placeholder-text" id="genImgPlaceholder">
+                        Your generated professional image will appear here.
+                    </div>
+                    <img id="generatedImage" style="display: none;" />
                 </div>
             </div>
         </div>

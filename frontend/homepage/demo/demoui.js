@@ -17,6 +17,7 @@ const recordingIndicator = document.getElementById('recordingIndicator');
 const videoFeed = document.getElementById('videoFeed');
 const videoPlaceholder = document.getElementById('videoPlaceholder');
 
+// Analysis Metrics
 const confidenceVal = document.getElementById('confidence');
 const confidenceBar = document.getElementById('confidenceBar');
 const eyeContactVal = document.getElementById('eyeContact');
@@ -26,12 +27,28 @@ const clarityBar = document.getElementById('clarityBar');
 const postureVal = document.getElementById('posture');
 const postureBar = document.getElementById('postureBar');
 
+// Transcript
 const transcriptEl = document.getElementById('transcript');
 const transcriptPlaceholder = document.getElementById('transcriptPlaceholder');
+
+// --- NEW Results Tabs Elements ---
+const tabLinks = document.querySelectorAll('.tab-link');
+const tabContents = document.querySelectorAll('.tab-content');
+
+// Tab 1: AI Feedback
 const feedbackEl = document.getElementById('feedbackContainer');
 const feedbackPlaceholder = document.getElementById('feedbackPlaceholder');
-const grantsEl = document.getElementById('grantsContainer');
-const grantsPlaceholder = document.getElementById('grantsPlaceholder');
+
+// Tab 2: Room Scan
+const roomScanEl = document.getElementById('roomScanContainer');
+const roomScanPlaceholder = document.getElementById('roomScanPlaceholder');
+
+// Tab 3: Pro Image
+const genImgBtn = document.getElementById('genImgBtn');
+const genImgInput = document.getElementById('genImgInput');
+const genImgContainer = document.getElementById('genImgContainer');
+const genImgPlaceholder = document.getElementById('genImgPlaceholder');
+const generatedImage = document.getElementById('generatedImage');
 
 // --- State ---
 let mediaRecorder;
@@ -42,6 +59,21 @@ let isInterviewRunning = false;
 // --- Event Listeners ---
 startBtn.addEventListener('click', startInterview);
 stopBtn.addEventListener('click', stopInterview);
+genImgBtn.addEventListener('click', generateProfessionalImage);
+
+// Tabbed interface logic
+tabLinks.forEach(link => {
+    link.addEventListener('click', () => {
+        // Deactivate all
+        tabLinks.forEach(l => l.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+
+        // Activate clicked
+        link.classList.add('active');
+        document.getElementById(link.dataset.tab).classList.add('active');
+    });
+});
+
 
 // --- Core Functions ---
 
@@ -60,14 +92,11 @@ async function startInterview() {
     transcriptEl.appendChild(transcriptPlaceholder);
     feedbackEl.innerHTML = '';
     feedbackEl.appendChild(feedbackPlaceholder);
-    grantsEl.innerHTML = '';
-    grantsEl.appendChild(grantsPlaceholder);
+    roomScanEl.innerHTML = '';
+    roomScanEl.appendChild(roomScanPlaceholder);
 
     // --- Start Video Stream ---
-    // We use an <img> tag and set the src to the video stream endpoint.
-    // The backend serves it as 'multipart/x-mixed-replace; boundary=frame'
-    // which browsers can render directly in an <img> tag.
-    videoFeed.src = `${API_BASE_URL}/api/videostream`; // API path from videostream.js
+    videoFeed.src = `${API_BASE_URL}/api/videostream`;
     videoFeed.style.display = 'block';
     videoFeed.classList.add('video-active');
     videoPlaceholder.style.display = 'none';
@@ -93,7 +122,6 @@ async function startInterview() {
     }
 
     // --- Start Pose/Analysis Polling ---
-    // In a real app, this would be a WebSocket. For a hackathon, polling is fine.
     poseInterval = setInterval(fetchPoseData, 1000); // Poll every second
 
     // --- Run Background Scan (Once) ---
@@ -168,20 +196,22 @@ async function transcribeAudio(audioBlob) {
         const transcription = data.transcription;
 
         console.log('Transcription received:', transcription);
-        transcriptPlaceholder.style.display = 'none';
-        transcriptEl.innerHTML = `<p>${transcription}</p>`;
-        setStatus('TRANSCRIPTION COMPLETE. FETCHING AI FEEDBACK...');
-        
-        // Mock clarity score based on transcription length (hackathon demo logic)
-        const clarity = Math.min(Math.round(transcription.length / 2), 100);
-        updateAnalysisBar(clarityVal, clarityBar, clarity);
+        if (transcription) {
+            transcriptPlaceholder.style.display = 'none';
+            transcriptEl.innerHTML = `<p>${transcription}</p>`;
+            // Mock clarity score
+            const clarity = Math.min(Math.round(transcription.length / 2), 100);
+            updateAnalysisBar(clarityVal, clarityBar, clarity);
+        } else {
+             transcriptEl.innerHTML = '<div class="placeholder-text" id="transcriptPlaceholder">No speech detected.</div>';
+        }
 
+        setStatus('TRANSCRIPTION COMPLETE. FETCHING AI FEEDBACK...');
         return transcription;
 
     } catch (err) {
         console.error('Error during transcription:', err);
         setStatus(`Transcription Error: ${err.message}`, true);
-        transcriptPlaceholder.style.display = 'block';
         transcriptEl.innerHTML = '<div class="placeholder-text" id="transcriptPlaceholder">Audio transcription failed.</div>';
         return null;
     }
@@ -191,6 +221,14 @@ async function transcribeAudio(audioBlob) {
  * 2. Sends transcription to the /llm/advice endpoint
  */
 async function getAIFeedback(transcription) {
+    // Don't bother if transcription is empty
+    if (!transcription || transcription.trim() === '') {
+        setStatus('Interview complete. No speech to analyze.', true);
+        feedbackPlaceholder.style.display = 'block';
+        feedbackEl.innerHTML = '<div class="placeholder-text" id="feedbackPlaceholder">No speech was recorded to provide feedback.</div>';
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_BASE_URL}/api/llm/advice`, {
             method: 'POST',
@@ -206,17 +244,6 @@ async function getAIFeedback(transcription) {
         feedbackPlaceholder.style.display = 'none';
         feedbackEl.innerHTML = `<p>${feedbackText.replace(/\n/g, '<br>')}</p>`;
         setStatus('AI FEEDBACK LOADED. INTERVIEW COMPLETE.');
-
-        // --- HACKATHON DEMO LOGIC ---
-        // After getting feedback, we simulate "Grant Matching"
-        // In a real app, the feedback/transcription would be used to query a grant DB.
-        // Here, we just show some dummy data.
-        grantsPlaceholder.style.display = 'none';
-        grantsEl.innerHTML = `
-            <p><strong>MATCH: The Innovator's Seed Fund</strong><br>Based on your focus on "scalable technology" and "market disruption".</p>
-            <p><strong>MATCH: Social Impact Grant</strong><br>Your emphasis on "community" and "accessibility" aligns with this grant.</p>
-            <p><strong>MATCH: AI for Good Foundation</strong><br>Your project's AI component is a strong fit.</p>
-        `;
 
     } catch (err) {
         console.error('Error getting AI feedback:', err);
@@ -235,7 +262,6 @@ async function fetchPoseData() {
         if (!response.ok) throw new Error('Jetson not responding');
         
         const poseData = await response.json();
-        // console.log('Pose data:', poseData); 
         
         // --- HACKATHON DEMO LOGIC ---
         // Your /jetson-pose endpoint's content is unknown.
@@ -250,16 +276,11 @@ async function fetchPoseData() {
         updateAnalysisBar(postureVal, postureBar, fakePosture);
 
         // --- Demo Servo Control ---
-        // We can also randomly move the servo to simulate "tracking"
         const randomAngle = 90 + Math.floor(Math.random() * 40 - 20); // 70-110
         await controlServo(randomAngle);
 
     } catch (err) {
-        console.error('Error fetching pose data:', err);
-        // Don't flood status, just log it
         console.warn('Pose data polling failed.');
-        
-        // If polling fails, reset bars to 0
         resetAnalysisMetrics();
     }
 }
@@ -274,7 +295,6 @@ async function controlServo(angle) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ angle: Math.round(angle) }),
         });
-        // console.log(`Servo moved to ${angle}`);
     } catch (err) {
         console.error('Error controlling servo:', err);
     }
@@ -282,10 +302,12 @@ async function controlServo(angle) {
 
 /**
  * 5. Calls the /analyze-image endpoint
+ * This uses the hardcoded 'testimg.jpg' on your server.
  */
 async function scanRoomBackground() {
+    setStatus('Scanning room background...');
+    roomScanPlaceholder.textContent = 'Scanning...';
     try {
-        setStatus('Scanning room background...');
         const response = await fetch(`${API_BASE_URL}/api/scanroom/analyze-image`, {
             method: 'POST',
         });
@@ -294,17 +316,69 @@ async function scanRoomBackground() {
         const data = await response.json();
         console.log('Room scan result:', data.result);
         
-        // Add this to the feedback panel
-        const existingFeedback = feedbackEl.innerHTML;
-        feedbackPlaceholder.style.display = 'none';
-        feedbackEl.innerHTML = `<p><strong>Background Analysis:</strong><br>${data.result}</p>` + existingFeedback;
+        roomScanPlaceholder.style.display = 'none';
+        // The 'result' is a string, which might be JSON. Let's try to format it.
+        let formattedResult = data.result;
+        try {
+            const jsonResult = JSON.parse(data.result);
+            formattedResult = '<strong>Objects Detected:</strong><ul>' +
+                jsonResult.map(item => `<li>${item.label} (at ${item.point})</li>`).join('') +
+                '</ul>';
+        } catch (e) {
+            // It's not JSON, just display as text
+            formattedResult = `<p>${data.result.replace(/\n/g, '<br>')}</p>`;
+        }
+        roomScanEl.innerHTML = formattedResult;
+
+        if (isInterviewRunning) setStatus('INTERVIEW IN PROGRESS... Room scan complete.');
 
     } catch (err) {
         console.error('Error scanning room:', err);
-        // Don't overwrite main status, just add to feedback
-        const existingFeedback = feedbackEl.innerHTML;
-        feedbackPlaceholder.style.display = 'none';
-        feedbackEl.innerHTML = `<p><strong>Background Analysis:</strong><br>Could not analyze room.</p>` + existingFeedback;
+        roomScanEl.innerHTML = '<div class="placeholder-text" id="roomScanPlaceholder">Failed to scan room.</div>';
+        if (isInterviewRunning) setStatus('INTERVIEW IN PROGRESS... Room scan failed.', true);
+    }
+}
+
+/**
+ * 6. Calls the /genimg endpoint
+ */
+async function generateProfessionalImage() {
+    const prompt = genImgInput.value;
+    if (!prompt) {
+        alert('Please enter a prompt to generate an image.');
+        return;
+    }
+
+    console.log('Generating image with prompt:', prompt);
+    genImgPlaceholder.style.display = 'block';
+    genImgPlaceholder.textContent = 'Generating... This may take a moment.';
+    generatedImage.style.display = 'none';
+    genImgBtn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/genimg/genimg`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt }),
+        });
+
+        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+
+        const data = await response.json();
+        
+        if (data.image) {
+            genImgPlaceholder.style.display = 'none';
+            generatedImage.src = `data:image/jpeg;base64,${data.image}`;
+            generatedImage.style.display = 'block';
+        } else {
+            throw new Error('No image data received.');
+        }
+
+    } catch (err) {
+        console.error('Error generating image:', err);
+        genImgPlaceholder.textContent = `Error: ${err.message}`;
+    } finally {
+        genImgBtn.disabled = false;
     }
 }
 
