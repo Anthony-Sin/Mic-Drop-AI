@@ -28,7 +28,7 @@ app.use('/api', scanroom);
 app.use('/api', bannanao);
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'homepage', 'homepage.html'));
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'homepage', 'index.html'));
 });
 
 const port = process.env.PORT || 3000;
