@@ -1,5 +1,4 @@
-const API_BASE_URL = 'https://mic-drop-ai-production.up.railway.app';
-
+const API_URL  = 'https://mic-drop-ai-production.up.railway.app';
 let isRecording = false;
 let interviewStartTime = null;
 let transcriptInterval = null;

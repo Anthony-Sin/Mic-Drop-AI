@@ -1,8 +1,6 @@
 import express from 'express';
-import path from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { fileURLToPath } from 'url';
 import transcribeRoute from '../routes/transcribe.js';
 import scanroom from '../routes/scanroom.js';
 import bannanao from '../routes/bananano.js'; 
@@ -10,34 +8,92 @@ import jetsonRoute from "../routes/jetson.js";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 
 app.use(cors({
-    origin: [
-        'https://0d84e913.mic-drop-ai.pages.dev',
-        'https://mic-drop-ai.pages.dev',
-        'http://localhost:3000',
-        'http://localhost:5173'
-    ],
-    credentials: true
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
 
-app.use("/", jetsonRoute);
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'online',
+    service: 'Mic-Drop-AI API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      pose: '/api/jetson-pose',
+      servo: '/api/jetson-servo',
+      transcribe: '/api/transcribe',
+      scanroom: '/api/analyze-image',
+      genimg: '/api/genimg'
+    }
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.use('/api', jetsonRoute);
 app.use('/api', transcribeRoute);
 app.use('/api', scanroom);
 app.use('/api', bannanao);
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'homepage', 'index.html'));
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found', path: req.path });
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.message);
+  res.status(500).json({ 
+    error: 'Internal server error', 
+    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message 
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0';
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`
+╔════════════════════════════════════════╗
+║   🚀 Mic-Drop-AI API Server Running   ║
+╠════════════════════════════════════════╣
+║  Port: ${PORT}                       
+║  Host: ${HOST}                    
+║  Env:  ${process.env.NODE_ENV || 'development'}              
+╚════════════════════════════════════════╝
+  `);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use`);
+  } else {
+    console.error('❌ Server error:', error);
+  }
+  process.exit(1);
+});
+
+process.on('SIGTERM', () => {
+  console.log('👋 SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
