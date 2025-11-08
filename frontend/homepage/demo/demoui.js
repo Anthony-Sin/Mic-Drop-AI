@@ -1,295 +1,329 @@
-const API_URL  = 'https://mic-drop-ai-production.up.railway.app';
-let isRecording = false;
-let interviewStartTime = null;
-let transcriptInterval = null;
-let metricsInterval = null;
-let mediaRecorder = null;
+// demoui.js
+
+// -----------------------------------------------------------------------------
+// !! IMPORTANT !!
+// UPDATE THIS URL WITH YOUR NGROK FORWARDING ADDRESS
+// -----------------------------------------------------------------------------
+const API_BASE_URL = 'https://YOUR-NGROK-URL.ngrok-free.app'; 
+// -----------------------------------------------------------------------------
+
+
+// --- DOM Elements ---
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const statusEl = document.getElementById('status');
+const recordingIndicator = document.getElementById('recordingIndicator');
+
+const videoFeed = document.getElementById('videoFeed');
+const videoPlaceholder = document.getElementById('videoPlaceholder');
+
+const confidenceVal = document.getElementById('confidence');
+const confidenceBar = document.getElementById('confidenceBar');
+const eyeContactVal = document.getElementById('eyeContact');
+const eyeContactBar = document.getElementById('eyeContactBar');
+const clarityVal = document.getElementById('clarity');
+const clarityBar = document.getElementById('clarityBar');
+const postureVal = document.getElementById('posture');
+const postureBar = document.getElementById('postureBar');
+
+const transcriptEl = document.getElementById('transcript');
+const transcriptPlaceholder = document.getElementById('transcriptPlaceholder');
+const feedbackEl = document.getElementById('feedbackContainer');
+const feedbackPlaceholder = document.getElementById('feedbackPlaceholder');
+const grantsEl = document.getElementById('grantsContainer');
+const grantsPlaceholder = document.getElementById('grantsPlaceholder');
+
+// --- State ---
+let mediaRecorder;
 let audioChunks = [];
-let recordingInterval = null;
+let poseInterval;
+let isInterviewRunning = false;
 
-const sampleQuestions = [
-    "Tell me about your project or organization.",
-    "What are your primary goals for this grant?",
-    "How will you measure success?",
-    "What makes your project unique?",
-    "What is your estimated budget?"
-];
+// --- Event Listeners ---
+startBtn.addEventListener('click', startInterview);
+stopBtn.addEventListener('click', stopInterview);
 
-const feedbackTypes = [
-    { category: "Body Language", score: "85/100", text: "Excellent eye contact maintained. Consider sitting slightly more upright to project confidence." },
-    { category: "Speech Pattern", score: "78/100", text: "Clear articulation. Try to reduce filler words like 'um' and 'uh' for more professional delivery." },
-    { category: "Content Quality", score: "92/100", text: "Strong narrative structure. Your passion for the project comes through clearly." },
-    { category: "Engagement", score: "88/100", text: "Good use of examples. Consider adding more specific metrics and data points." }
-];
-
-const sampleGrants = [
-    {
-        title: "Tech Innovation Fund 2024",
-        amount: "$50,000",
-        match: "94% MATCH",
-        description: "Supporting innovative technology solutions that address social challenges. Focuses on scalable projects with measurable community impact.",
-        tags: ["Technology", "Innovation", "Social Impact", "Education"]
-    },
-    {
-        title: "Community Development Grant",
-        amount: "$35,000",
-        match: "87% MATCH",
-        description: "Funding for programs that strengthen local communities through education and skill development initiatives.",
-        tags: ["Community", "Education", "Youth", "Development"]
-    },
-    {
-        title: "Digital Equity Initiative",
-        amount: "$75,000",
-        match: "91% MATCH",
-        description: "Large-scale funding for projects reducing the digital divide and promoting technology access in underserved areas.",
-        tags: ["Digital Access", "Equity", "Technology", "Rural"]
-    }
-];
+// --- Core Functions ---
 
 async function startInterview() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                channelCount: 1,
-                sampleRate: 16000
-            },
-            video: true 
-        });
-        
-        const videoElement = document.getElementById('videoFeed');
-        videoElement.srcObject = stream;
-        videoElement.play();
-        
-        isRecording = true;
-        interviewStartTime = Date.now();
-        
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('stopBtn').disabled = false;
-        document.getElementById('recordingIndicator').style.display = 'block';
-        document.getElementById('status').textContent = 'RECORDING • ANALYZING IN REAL-TIME';
-        
-        document.getElementById('videoPlaceholder').style.display = 'none';
-        document.getElementById('videoFeed').style.display = 'block';
-        document.getElementById('faceBox').classList.add('active');
-        document.getElementById('faceBox').style.top = '20%';
-        document.getElementById('faceBox').style.left = '30%';
-        document.getElementById('faceBox').style.width = '40%';
-        document.getElementById('faceBox').style.height = '50%';
+    console.log('Starting interview...');
+    isInterviewRunning = true;
 
-        setupAudioRecording(stream);
-        
-        startQuestions();
-        
-        startMetrics();
-
-        setTimeout(showFeedback, 5000);
-
-        setTimeout(showGrants, 10000);
-    } catch (error) {
-        console.error('Error accessing media devices:', error);
-        alert('Could not access microphone or camera. Please grant permissions and try again.');
-    }
-}
-
-function setupAudioRecording(stream) {
-    const audioStream = new MediaStream(stream.getAudioTracks());
-    mediaRecorder = new MediaRecorder(audioStream, {
-        mimeType: 'audio/webm'
-    });
+    // --- UI Updates ---
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    recordingIndicator.style.display = 'block';
+    setStatus('INTERVIEW IN PROGRESS... AUDIO RECORDING ACTIVE.');
     
-    audioChunks = [];
-    
-    mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-            audioChunks.push(event.data);
-        }
-    };
-    
-    mediaRecorder.onstop = async () => {
-        if (audioChunks.length > 0) {
-            await sendAudioForTranscription();
-        }
-    };
-    
-    mediaRecorder.start();
-    recordingInterval = setInterval(() => {
-        if (isRecording && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            setTimeout(() => {
-                if (isRecording) {
-                    audioChunks = [];
-                    mediaRecorder.start();
-                }
-            }, 100);
-        }
-    }, 5000);
-}
-
-async function sendAudioForTranscription() {
-    try {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'audio.webm');
-        
-        const response = await fetch(`${API_BASE_URL}/api/transcribe`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.transcription && data.transcription.trim()) {
-                addTranscriptionToUI(data.transcription);
-            }
-        } else {
-            console.error('Transcription request failed:', response.statusText);
-        }
-    } catch (error) {
-        console.error('Error sending audio for transcription:', error);
-    }
-}
-
-function addTranscriptionToUI(transcription) {
-    const transcriptEl = document.getElementById('transcript');
-    const time = new Date(Date.now() - interviewStartTime).toISOString().substr(14, 5);
-    
-    const responseEntry = document.createElement('div');
-    responseEntry.className = 'transcript-entry';
-    responseEntry.style.borderLeftColor = '#fff';
-    responseEntry.innerHTML = `
-        <div class="transcript-time" style="color: #fff;">[${time}] YOU:</div>
-        <div class="transcript-text">${transcription}</div>
-    `;
-    transcriptEl.appendChild(responseEntry);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-}
-
-function startQuestions() {
-    const transcriptEl = document.getElementById('transcript');
+    // Clear previous results
     transcriptEl.innerHTML = '';
-    let questionIndex = 0;
+    transcriptEl.appendChild(transcriptPlaceholder);
+    feedbackEl.innerHTML = '';
+    feedbackEl.appendChild(feedbackPlaceholder);
+    grantsEl.innerHTML = '';
+    grantsEl.appendChild(grantsPlaceholder);
 
-    askQuestion(questionIndex);
-    questionIndex++;
+    // --- Start Video Stream ---
+    // We use an <img> tag and set the src to the video stream endpoint.
+    // The backend serves it as 'multipart/x-mixed-replace; boundary=frame'
+    // which browsers can render directly in an <img> tag.
+    videoFeed.src = `${API_BASE_URL}/api/videostream`; // API path from videostream.js
+    videoFeed.style.display = 'block';
+    videoFeed.classList.add('video-active');
+    videoPlaceholder.style.display = 'none';
 
-    transcriptInterval = setInterval(() => {
-        if (!isRecording) return;
-        askQuestion(questionIndex);
-        questionIndex++;
-    }, 15000);
-}
+    // --- Start Audio Recording ---
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = []; // Clear old chunks
 
-function askQuestion(index) {
-    const transcriptEl = document.getElementById('transcript');
-    const time = new Date(Date.now() - interviewStartTime).toISOString().substr(14, 5);
-    
-    const questionEntry = document.createElement('div');
-    questionEntry.className = 'transcript-entry';
-    questionEntry.innerHTML = `
-        <div class="transcript-time">[${time}] AI INTERVIEWER:</div>
-        <div class="transcript-text">${sampleQuestions[index % sampleQuestions.length]}</div>
-    `;
-    transcriptEl.appendChild(questionEntry);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+        mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = handleAudioStop;
+        mediaRecorder.start();
+        
+    } catch (err) {
+        console.error('Error getting audio stream:', err);
+        setStatus('ERROR: Could not access microphone.', true);
+        stopInterview(); // Abort
+        return;
+    }
+
+    // --- Start Pose/Analysis Polling ---
+    // In a real app, this would be a WebSocket. For a hackathon, polling is fine.
+    poseInterval = setInterval(fetchPoseData, 1000); // Poll every second
+
+    // --- Run Background Scan (Once) ---
+    scanRoomBackground();
 }
 
 function stopInterview() {
-    isRecording = false;
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('stopBtn').disabled = true;
-    document.getElementById('recordingIndicator').style.display = 'none';
-    document.getElementById('status').textContent = 'INTERVIEW COMPLETED • GENERATING FINAL REPORT';
-    
+    console.log('Stopping interview...');
+    if (!isInterviewRunning) return;
+    isInterviewRunning = false;
+
+    // --- UI Updates ---
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    recordingIndicator.style.display = 'none';
+    setStatus('SYSTEM READY • AWAITING INPUT');
+
+    // --- Stop Video Stream ---
+    videoFeed.src = ''; // Stop the stream
+    videoFeed.style.display = 'none';
+    videoFeed.classList.remove('video-active');
+    videoPlaceholder.style.display = 'flex';
+
+    // --- Stop Audio Recording ---
     if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-    }
-    
-    clearInterval(transcriptInterval);
-    clearInterval(metricsInterval);
-    clearInterval(recordingInterval);
-    
-    const videoElement = document.getElementById('videoFeed');
-    if (videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
+        mediaRecorder.stop(); // This will trigger the 'onstop' event
     }
 
-    setTimeout(() => {
-        document.getElementById('status').textContent = 'ANALYSIS COMPLETE • REVIEW YOUR RESULTS';
-    }, 2000);
+    // --- Stop Pose Polling ---
+    clearInterval(poseInterval);
+    resetAnalysisMetrics();
 }
 
-function startMetrics() {
-    metricsInterval = setInterval(() => {
-        if (!isRecording) return;
+/**
+ * This function is called automatically when mediaRecorder.stop() is executed.
+ */
+async function handleAudioStop() {
+    console.log('Audio recording stopped. Processing...');
+    setStatus('PROCESSING AUDIO... PLEASE WAIT.');
 
-        updateMetric('confidence', 70 + Math.random() * 25);
-        updateMetric('eyeContact', 75 + Math.random() * 20);
-        updateMetric('clarity', 80 + Math.random() * 15);
-        updateMetric('posture', 65 + Math.random() * 30);
-    }, 1500);
+    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+
+    // 1. Transcribe Audio
+    const transcription = await transcribeAudio(audioBlob);
+    
+    if (transcription) {
+        // 2. Get AI Feedback
+        await getAIFeedback(transcription);
+    } else {
+        setStatus('Audio processing failed. No transcription available.', true);
+    }
 }
 
-function updateMetric(name, value) {
-    const rounded = Math.round(value);
-    document.getElementById(name).textContent = rounded + '%';
-    document.getElementById(name + 'Bar').style.width = rounded + '%';
-}
+// --- API Call Functions ---
 
-function showFeedback() {
-    const container = document.getElementById('feedbackContainer');
-    container.innerHTML = '';
+/**
+ * 1. Sends audio to the /transcribe endpoint
+ */
+async function transcribeAudio(audioBlob) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'interview-audio.wav');
 
-    feedbackTypes.forEach((feedback, index) => {
-        setTimeout(() => {
-            const item = document.createElement('div');
-            item.className = 'feedback-item';
-            item.innerHTML = `
-                <div class="feedback-header">
-                    <span class="feedback-category">${feedback.category}</span>
-                    <span class="feedback-score">${feedback.score}</span>
-                </div>
-                <div class="feedback-text">${feedback.text}</div>
-            `;
-            container.appendChild(item);
-        }, index * 1000);
-    });
-}
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/transcribe/transcribe`, {
+            method: 'POST',
+            body: formData,
+        });
 
-function showGrants() {
-    const container = document.getElementById('grantsContainer');
-    container.innerHTML = '';
+        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
 
-    sampleGrants.forEach((grant, index) => {
-        setTimeout(() => {
-            const card = document.createElement('div');
-            card.className = 'grant-card';
-            card.innerHTML = `
-                <div class="grant-header">
-                    <div>
-                        <div class="grant-title">${grant.title}</div>
-                        <div class="grant-match">${grant.match}</div>
-                    </div>
-                    <div class="grant-amount">${grant.amount}</div>
-                </div>
-                <div class="grant-description">${grant.description}</div>
-                <div class="grant-tags">
-                    ${grant.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
-                </div>
-            `;
-            container.appendChild(card);
-        }, index * 800);
-    });
-}
+        const data = await response.json();
+        const transcription = data.transcription;
 
-setInterval(() => {
-    if (isRecording) {
-        const faceBox = document.getElementById('faceBox');
-        const currentTop = parseFloat(faceBox.style.top);
-        const currentLeft = parseFloat(faceBox.style.left);
+        console.log('Transcription received:', transcription);
+        transcriptPlaceholder.style.display = 'none';
+        transcriptEl.innerHTML = `<p>${transcription}</p>`;
+        setStatus('TRANSCRIPTION COMPLETE. FETCHING AI FEEDBACK...');
         
-        faceBox.style.top = (currentTop + (Math.random() - 0.5) * 2) + '%';
-        faceBox.style.left = (currentLeft + (Math.random() - 0.5) * 2) + '%';
+        // Mock clarity score based on transcription length (hackathon demo logic)
+        const clarity = Math.min(Math.round(transcription.length / 2), 100);
+        updateAnalysisBar(clarityVal, clarityBar, clarity);
+
+        return transcription;
+
+    } catch (err) {
+        console.error('Error during transcription:', err);
+        setStatus(`Transcription Error: ${err.message}`, true);
+        transcriptPlaceholder.style.display = 'block';
+        transcriptEl.innerHTML = '<div class="placeholder-text" id="transcriptPlaceholder">Audio transcription failed.</div>';
+        return null;
     }
-}, 100);
+}
+
+/**
+ * 2. Sends transcription to the /llm/advice endpoint
+ */
+async function getAIFeedback(transcription) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/llm/advice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: transcription }), // Match backend's expected format
+        });
+
+        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+        
+        const feedbackText = await response.json(); // Backend sends text directly
+
+        console.log('AI feedback received:', feedbackText);
+        feedbackPlaceholder.style.display = 'none';
+        feedbackEl.innerHTML = `<p>${feedbackText.replace(/\n/g, '<br>')}</p>`;
+        setStatus('AI FEEDBACK LOADED. INTERVIEW COMPLETE.');
+
+        // --- HACKATHON DEMO LOGIC ---
+        // After getting feedback, we simulate "Grant Matching"
+        // In a real app, the feedback/transcription would be used to query a grant DB.
+        // Here, we just show some dummy data.
+        grantsPlaceholder.style.display = 'none';
+        grantsEl.innerHTML = `
+            <p><strong>MATCH: The Innovator's Seed Fund</strong><br>Based on your focus on "scalable technology" and "market disruption".</p>
+            <p><strong>MATCH: Social Impact Grant</strong><br>Your emphasis on "community" and "accessibility" aligns with this grant.</p>
+            <p><strong>MATCH: AI for Good Foundation</strong><br>Your project's AI component is a strong fit.</p>
+        `;
+
+    } catch (err) {
+        console.error('Error getting AI feedback:', err);
+        setStatus(`AI Feedback Error: ${err.message}`, true);
+        feedbackPlaceholder.style.display = 'block';
+        feedbackEl.innerHTML = '<div class="placeholder-text" id="feedbackPlaceholder">Failed to get AI feedback.</div>';
+    }
+}
+
+/**
+ * 3. Polls the /jetson-pose endpoint (and fakes analysis)
+ */
+async function fetchPoseData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/jetson/jetson-pose`);
+        if (!response.ok) throw new Error('Jetson not responding');
+        
+        const poseData = await response.json();
+        // console.log('Pose data:', poseData); 
+        
+        // --- HACKATHON DEMO LOGIC ---
+        // Your /jetson-pose endpoint's content is unknown.
+        // For the demo, we'll just generate FAKE analysis data.
+        // In a real app, your Jetson would analyze poseData and return these metrics.
+        const fakeConfidence = 70 + Math.floor(Math.random() * 20); // 70-90%
+        const fakeEyeContact = 60 + Math.floor(Math.random() * 30); // 60-90%
+        const fakePosture = 80 + Math.floor(Math.random() * 15);     // 80-95%
+
+        updateAnalysisBar(confidenceVal, confidenceBar, fakeConfidence);
+        updateAnalysisBar(eyeContactVal, eyeContactBar, fakeEyeContact);
+        updateAnalysisBar(postureVal, postureBar, fakePosture);
+
+        // --- Demo Servo Control ---
+        // We can also randomly move the servo to simulate "tracking"
+        const randomAngle = 90 + Math.floor(Math.random() * 40 - 20); // 70-110
+        await controlServo(randomAngle);
+
+    } catch (err) {
+        console.error('Error fetching pose data:', err);
+        // Don't flood status, just log it
+        console.warn('Pose data polling failed.');
+        
+        // If polling fails, reset bars to 0
+        resetAnalysisMetrics();
+    }
+}
+
+/**
+ * 4. Calls the /jetson-servo endpoint
+ */
+async function controlServo(angle) {
+    try {
+        await fetch(`${API_BASE_URL}/api/jetson/jetson-servo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ angle: Math.round(angle) }),
+        });
+        // console.log(`Servo moved to ${angle}`);
+    } catch (err) {
+        console.error('Error controlling servo:', err);
+    }
+}
+
+/**
+ * 5. Calls the /analyze-image endpoint
+ */
+async function scanRoomBackground() {
+    try {
+        setStatus('Scanning room background...');
+        const response = await fetch(`${API_BASE_URL}/api/scanroom/analyze-image`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to analyze room');
+        
+        const data = await response.json();
+        console.log('Room scan result:', data.result);
+        
+        // Add this to the feedback panel
+        const existingFeedback = feedbackEl.innerHTML;
+        feedbackPlaceholder.style.display = 'none';
+        feedbackEl.innerHTML = `<p><strong>Background Analysis:</strong><br>${data.result}</p>` + existingFeedback;
+
+    } catch (err) {
+        console.error('Error scanning room:', err);
+        // Don't overwrite main status, just add to feedback
+        const existingFeedback = feedbackEl.innerHTML;
+        feedbackPlaceholder.style.display = 'none';
+        feedbackEl.innerHTML = `<p><strong>Background Analysis:</strong><br>Could not analyze room.</p>` + existingFeedback;
+    }
+}
+
+
+// --- Utility Functions ---
+
+function setStatus(message, isError = false) {
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? '#ff4d4d' : 'var(--text-muted)';
+}
+
+function updateAnalysisBar(valueEl, barEl, percentage) {
+    valueEl.textContent = `${percentage}%`;
+    barEl.style.width = `${percentage}%`;
+}
+
+function resetAnalysisMetrics() {
+    updateAnalysisBar(confidenceVal, confidenceBar, 0);
+    updateAnalysisBar(eyeContactVal, eyeContactBar, 0);
+    updateAnalysisBar(clarityVal, clarityBar, 0);
+    updateAnalysisBar(postureVal, postureBar, 0);
+}

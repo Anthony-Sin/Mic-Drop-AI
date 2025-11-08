@@ -2,7 +2,7 @@ import express from "express";
 
 const router = express.Router();
 
-const JETSON_IP = process.env.JETSON_IP || "http://192.168.55.1";
+const JETSON_IP = process.env.JETSON_IP || "http://localhost:80";
 
 router.get("/jetson-pose", async (req, res) => {
   try {
